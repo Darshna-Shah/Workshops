@@ -50,13 +50,25 @@ ggplot(data=TitanicData, aes(x=Sex, y=Survived, fill=Sex)) +
 
 ggplot(data=TitanicData, aes(x=Age, y=Survived, fill=Age)) +
   geom_bar(stat="identity")+
-  ggtitle("Differences in different aged individuals that survived the Titanic")
+  ggtitle("Differences in different aged individuals that did not survive the Titanic")
 
 ggplot(data=TitanicData, aes(x=Pclass, y=Survived, fill=Pclass)) +
   geom_bar(stat="identity")+
-  ggtitle("Differences between different classes that survived the Titanic")
+  ggtitle("Differences between different classes that did not survive the Titanic")
 
 ########################################################################################################
+
+#================================================================
+#correct data types forms for modelling
+#================================================================
+TitanicData$Pclass <- as.integer(TitanicData$Pclass)
+TitanicData$Sex <- as.integer(TitanicData$Sex)
+TitanicData$Embarked <- as.integer(TitanicData$Embarked)
+
+levels(TitanicData$Survived)[levels(TitanicData$Survived)== "0"] <- "perished"
+levels(TitanicData$Survived)[levels(TitanicData$Survived)== "1"] <- "survived"
+
+summary(TitanicData)
 
 #=================================================================
 # Split Data
@@ -65,7 +77,7 @@ ggplot(data=TitanicData, aes(x=Pclass, y=Survived, fill=Pclass)) +
 # Use caret to create a 70/30% split of the training data,
 # keeping the proportions of the Survived class label the
 # same across splits.
-set.seed(54321)
+set.seed(42)
 indexes <- createDataPartition(TitanicData$Survived,
                                times = 1,
                                p = 0.7,
@@ -81,24 +93,57 @@ prop.table(table(titanic.train$Survived))
 prop.table(table(titanic.test$Survived))
 
 #========================================
-# Build the classification model
+#  the classification model
 #========================================
 
+#model
 model <- train(Survived~., data = titanic.train, method = "glm")
-
-
 model
 model$finalModel
 
+#test
 preds <- predict(model, titanic.test)
-
 preds
 
-#================================================================
-# Evaluate with performance of the model with a confusion matrix
-#================================================================
+#evaluate
 confusionMatrix(preds, titanic.test$Survived)
 
 
+# f1 score function
+f1_score <- function(TP, FP, FN){
+  precision <- TP/(TP + FP)
+  recall <- TP/(TP + FN)
+  F1 <- 2*(precision*recall)/(precision+recall)
+  
+  return(F1)
+}
+
+f1_score(141,28,23) #0.8468468
+
+# investigate feature importance
+varImp(object=model)
+plot(varImp(object=model),main="glm  - Variable Importance")
+################################################################################################################
+
+#=================================================================
+#  Use a decision tree algorithm to predict titanic survival
+#================================================================
+
+set.seed(42)
+model_DT <- train(Survived ~., data = titanic.train,
+                  method = "rpart",
+                  trControl = trainControl(method = "cv", number = 5, summaryFunction = twoClassSummary, classProbs = TRUE, verboseIter = TRUE))
+
+model_DT
+summary(model_DT)
+
+#test
+predictedvals <- predict(model_DT, titanic.test)
+summary(predictedvals)
+
+#evaluate
+confusionMatrix(predictedvals, titanic.test$Survived)
+
+f1_score(149,34,15) #0.8587896
 
 
